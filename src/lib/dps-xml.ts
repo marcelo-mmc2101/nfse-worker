@@ -96,7 +96,12 @@ export function buildDpsXml(p: EmitParams): string {
               tribISSQN: p.naturezaTributacao || "1",
               tpRetISSQN: "1",
             },
-            totTrib: { indTotTrib: "0" },
+            // Totalização de tributos (Lei da Transparência). O grupo é uma escolha
+            // exclusiva: optante do Simples usa indTotTrib; NÃO optante não pode usar
+            // indTotTrib (rejeição E0713) e informa os valores via vTotTrib.
+            totTrib: p.optanteSimplesNacional
+              ? { indTotTrib: "0" }
+              : { vTotTrib: { vTotTribFed: "0.00", vTotTribEst: "0.00", vTotTribMun: "0.00" } },
           },
         },
         ...(p.observacoes ? { infCompl: { xInfComp: p.observacoes } } : {}),
