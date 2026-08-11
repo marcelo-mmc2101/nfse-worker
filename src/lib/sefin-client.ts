@@ -18,8 +18,15 @@ export interface SefinResponse {
   dataHoraProcessamento: string;
   idDPS: string;
   chaveAcesso?: string;
+  // A NFS-e autorizada volta aqui (gzip+base64) quando o SEFIN gera o documento.
+  nfseXmlGZipB64?: string;
   erros?: Array<{ Codigo: string; Descricao: string; Complemento?: string }>;
   alertas?: Array<{ Codigo: string; Descricao: string }>;
+}
+
+/** Descomprime um campo gzip+base64 devolvido pelo SEFIN (ex.: a NFS-e autorizada). */
+export function gunzipB64(b64: string): string {
+  return zlib.gunzipSync(Buffer.from(b64, "base64")).toString("utf-8");
 }
 
 export async function postSefin(

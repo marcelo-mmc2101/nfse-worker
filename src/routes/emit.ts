@@ -1,7 +1,7 @@
 import type { Request, Response } from "express";
 import { loadCertFromBase64, createHttpsAgent } from "../lib/cert.js";
 import { buildDpsXml, signDpsXml, buildIdDps, type EmitParams } from "../lib/dps-xml.js";
-import { postSefin } from "../lib/sefin-client.js";
+import { postSefin, gunzipB64 } from "../lib/sefin-client.js";
 
 export async function handleEmit(req: Request, res: Response) {
   try {
@@ -77,6 +77,12 @@ export async function handleEmit(req: Request, res: Response) {
     const agent = createHttpsAgent(credentials);
     const result = await postSefin(signedXml, agent, ambiente || "producao");
 
+    // XML da NFS-e autorizada (para guarda fiscal de 5 anos). O app persiste isto.
+    let nfseXml: string | null = null;
+    if (result.nfseXmlGZipB64) {
+      try { nfseXml = gunzipB64(result.nfseXmlGZipB64); } catch { nfseXml = null; }
+    }
+
     return res.json({
       success: true,
       idDPS: result.idDPS,
@@ -84,6 +90,9 @@ export async function handleEmit(req: Request, res: Response) {
       dataHoraProcessamento: result.dataHoraProcessamento,
       ambiente: result.tipoAmbiente === 1 ? "producao" : "homologacao",
       alertas: result.alertas || [],
+      // Documentos fiscais para o app guardar: o DPS que assinamos e a NFS-e autorizada.
+      dpsXml: signedXml,
+      nfseXml,
     });
   } catch (err: any) {
     console.error("[emit] Error:", err.message);
