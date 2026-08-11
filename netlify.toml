@@ -1,0 +1,20 @@
+# Deploy do worker como Netlify Function (serverless, sob demanda).
+# Sem cartão no plano free; uso comercial permitido dentro dos limites.
+# Defina a variável NFSE_WORKER_API_KEY em Site settings > Environment variables.
+
+[build]
+  functions = "netlify/functions"
+  # Não há site estático; só a function. publish aponta para uma pasta vazia.
+  publish = "public_site"
+  command = "mkdir -p public_site"
+
+[functions]
+  node_bundler = "esbuild"
+
+# Toda requisição (/health, /emit, /status, /cancel) é reescrita para a function,
+# preservando o path original para o Express roteador.
+[[redirects]]
+  from = "/*"
+  to = "/.netlify/functions/api"
+  status = 200
+  force = true
