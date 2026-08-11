@@ -47,7 +47,11 @@ export async function postSefin(
           "User-Agent": "ERP-NFSE-WORKER/1.0",
         },
         agent,
-        timeout: 30000,
+        // O Ambiente Nacional é SÍNCRONO: esta requisição só retorna quando o
+        // SEFIN termina de processar e devolve a NFS-e autorizada. Em plataformas
+        // com teto curto (ex.: Netlify free ~10s), reduza via SEFIN_TIMEOUT_MS para
+        // falhar antes do teto e devolver um erro claro em vez de um 502 opaco.
+        timeout: parseInt(process.env.SEFIN_TIMEOUT_MS || "25000", 10),
       },
       (res) => {
         let body = "";
