@@ -32,6 +32,17 @@ export interface EmitParams {
   regimeEspecial?: string;
   naturezaTributacao?: string;
   ambiente?: "producao" | "homologacao";
+  // RTC (Reforma Tributária — IBS/CBS). OPT-IN e desligado por padrão: o leiaute do
+  // grupo no DPS ainda é transitório e o Ambiente Nacional pode rejeitá-lo em
+  // homologação. Só é injetado no XML quando `rtc` vem preenchido — assim a emissão
+  // atual (sem RTC) não muda. Ligar por município conforme o SEFIN passar a aceitar.
+  rtc?: {
+    cClassTrib: string; // código de classificação tributária IBS/CBS
+    CST: string;        // código de situação tributária IBS/CBS
+    vBC?: number;       // base de cálculo
+    pIBS?: number;      // alíquota IBS (%)
+    pCBS?: number;      // alíquota CBS (%)
+  };
 }
 
 export function buildIdDps(p: EmitParams): string {
@@ -102,6 +113,16 @@ export function buildDpsXml(p: EmitParams): string {
             totTrib: p.optanteSimplesNacional
               ? { indTotTrib: "0" }
               : { vTotTrib: { vTotTribFed: "0.00", vTotTribEst: "0.00", vTotTribMun: "0.00" } },
+            // RTC/IBS-CBS: só entra quando explicitamente habilitado (ver EmitParams.rtc).
+            ...(p.rtc ? {
+              gIBSCBS: {
+                cClassTrib: p.rtc.cClassTrib,
+                CST: p.rtc.CST,
+                ...(p.rtc.vBC !== undefined ? { vBC: fmt(p.rtc.vBC) } : {}),
+                ...(p.rtc.pIBS !== undefined ? { pIBS: fmt(p.rtc.pIBS, 4) } : {}),
+                ...(p.rtc.pCBS !== undefined ? { pCBS: fmt(p.rtc.pCBS, 4) } : {}),
+              },
+            } : {}),
           },
         },
         ...(p.observacoes ? { infCompl: { xInfComp: p.observacoes } } : {}),
@@ -120,8 +141,13 @@ export function buildDpsXml(p: EmitParams): string {
   return builder.build(dps) as string;
 }
 
-export function signDpsXml(xml: string, credentials: TlsCredentials): string {
-  const idDps = xml.match(/Id="([^"]+)"/)?.[1] || "";
+/**
+ * Assina (XMLDSig enveloped, SHA-256/RSA/C14N) o nó identificado por Id, colocando
+ * a <Signature> logo após o elemento âncora. Usado tanto pela DPS (âncora infDPS)
+ * quanto pelo evento de cancelamento (âncora infPedReg).
+ */
+function signXmlById(xml: string, credentials: TlsCredentials, anchorLocalName: string): string {
+  const idValue = xml.match(/Id="([^"]+)"/)?.[1] || "";
 
   const certPemMatch = credentials.cert.match(/-----BEGIN CERTIFICATE-----[\s\S]*?-----END CERTIFICATE-----/);
   if (!certPemMatch) throw new Error("Certificado PEM nao encontrado");
@@ -140,7 +166,7 @@ export function signDpsXml(xml: string, credentials: TlsCredentials): string {
   });
 
   sig.addReference({
-    xpath: `//*[@Id='${idDps}']`,
+    xpath: `//*[@Id='${idValue}']`,
     digestAlgorithm: "http://www.w3.org/2001/04/xmlenc#sha256",
     transforms: [
       "http://www.w3.org/2000/09/xmldsig#enveloped-signature",
@@ -149,8 +175,62 @@ export function signDpsXml(xml: string, credentials: TlsCredentials): string {
   });
 
   sig.computeSignature(xml, {
-    location: { reference: "//*[local-name()='infDPS']", action: "after" },
+    location: { reference: `//*[local-name()='${anchorLocalName}']`, action: "after" },
   });
 
   return sig.getSignedXml();
+}
+
+export function signDpsXml(xml: string, credentials: TlsCredentials): string {
+  return signXmlById(xml, credentials, "infDPS");
+}
+
+// ── Evento de cancelamento (e101101) da NFS-e Nacional ──────────────────────────
+export interface CancelParams {
+  cnpjAutor: string;       // CNPJ do autor do evento (prestador)
+  chaveAcesso: string;     // chave de acesso da NFS-e (50 dígitos)
+  motivo: string;          // justificativa (15..255 chars)
+  codigoMotivo?: "1" | "2" | "9"; // 1=erro na emissão, 2=serviço não prestado, 9=outros
+  nPedRegEvento?: string;  // sequência do pedido (default "1")
+  ambiente?: "producao" | "homologacao";
+}
+
+/** Monta o XML do pedido de registro de evento de cancelamento (não assinado). */
+export function buildCancelEventXml(p: CancelParams): string {
+  const nSeq = p.nPedRegEvento || "1";
+  const tpEvento = "101101"; // Cancelamento de NFS-e
+  const id = `PRE${p.chaveAcesso}${tpEvento}${nSeq.padStart(3, "0")}`;
+  const evt: Record<string, unknown> = {
+    "?xml": { "@_version": "1.0", "@_encoding": "UTF-8" },
+    pedRegEvento: {
+      "@_xmlns": NS,
+      "@_versao": "1.00",
+      infPedReg: {
+        "@_Id": id,
+        tpAmb: p.ambiente === "homologacao" ? "2" : "1",
+        verAplic: "ERP-NFSE-WORKER-1.1",
+        dhEvento: formatDateTimeBRT(new Date()),
+        CNPJAutor: p.cnpjAutor,
+        chNFSe: p.chaveAcesso,
+        nPedRegEvento: nSeq,
+        e101101: {
+          xDesc: "Cancelamento de NFS-e",
+          cMotivo: p.codigoMotivo || "9",
+          xMotivo: p.motivo,
+        },
+      },
+    },
+  };
+  const builder = new XMLBuilder({
+    ignoreAttributes: false,
+    attributeNamePrefix: "@_",
+    processEntities: false,
+    suppressEmptyNode: true,
+    format: false,
+  });
+  return builder.build(evt) as string;
+}
+
+export function signCancelEventXml(xml: string, credentials: TlsCredentials): string {
+  return signXmlById(xml, credentials, "infPedReg");
 }
