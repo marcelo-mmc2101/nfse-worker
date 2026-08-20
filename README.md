@@ -42,9 +42,16 @@ Serve só para garantir que **apenas o seu app** consegue mandar o worker emitir
 - no **worker** (variável de ambiente `NFSE_WORKER_API_KEY`);
 - no **app** (campo "Chave do worker" em Configurações → NFS-e).
 
-É uma string aleatória qualquer (ex.: `openssl rand -base64 32`). No Railway o template **gera
-sozinho**; no Netlify/Cloud Run você cria a variável e cola o mesmo valor no app. Se vazar, é só
-trocar nos dois lados — o certificado nunca é exposto por ela.
+É uma string aleatória qualquer. **Em toda hospedagem você cria a variável à mão** — nenhuma delas
+gera essa chave sozinha. O caminho mais curto é deixar o app gerar: em **Configurações → NFS-e**,
+clique em **Gerar** no campo "Chave do servidor", e cole o mesmo valor na variável de ambiente da
+sua hospedagem. Se preferir, `openssl rand -base64 32` serve igual.
+
+> **O erro que mais acontece:** subir o worker sem definir a variável. Ele sobe, o healthcheck da
+> hospedagem passa (porque `/health` é público de propósito) e **toda chamada real é recusada**. O
+> painel mostra o serviço verde e nenhuma nota é emitida. Se está assim, é isso.
+
+Se vazar, é só trocar nos dois lados — o certificado nunca é exposto por ela.
 
 ---
 
@@ -87,10 +94,13 @@ testar/homologar ou baixo volume sem cartão → **Netlify**; deploy mais simple
 
 ### Opção C — Railway (servidor sempre-ligado, ~US$5/mês)
 
-[![Deploy on Railway](https://railway.com/button.svg)](https://railway.com/new/template/nfse-worker)
+[![Deploy on Railway](https://railway.com/button.svg)](https://railway.com/deploy?repo=https%3A%2F%2Fgithub.com%2FMindOpsTeam%2Fnfse-worker)
 
-- A Railway **gera sozinha** a `NFSE_WORKER_API_KEY` (`${{ secret(32) }}`) — você não digita chave.
-- Deploy via `Dockerfile` + healthcheck `/health`; gere o domínio em **Settings → Networking**.
+- Deploy a partir deste repositório, via `Dockerfile` + healthcheck `/health`.
+- **Crie a variável `NFSE_WORKER_API_KEY`** em **Variables → New Variable** e cole a chave que o
+  app gerou. Ela **não** vem pronta: o botão faz deploy do repositório, não de um template com
+  segredo gerado. Sem essa variável o worker recusa tudo.
+- Gere o domínio em **Settings → Networking → Generate Domain** e cole a URL no app.
 - **Sem teto de tempo** (fica de pé 24/7). Exige cartão (Hobby ~US$5/mês). O deploy mais simples.
 
 ### Não quero manter servidor nenhum
@@ -125,7 +135,7 @@ setada, o worker recusa tudo (fail-closed).
 
 | Variável | Obrigatória | Descrição |
 |---|---|---|
-| `NFSE_WORKER_API_KEY` | ✅ | Senha de acesso ao worker (header `X-API-Key`). Mesmo valor no app. No Railway é gerada pelo template. |
+| `NFSE_WORKER_API_KEY` | ✅ | Senha de acesso ao worker (header `X-API-Key`). Mesmo valor no app. **Você cria em qualquer hospedagem**; o app gera o valor para você colar. |
 | `PORT` | — | Porta HTTP (default `3000`; Railway/Cloud Run injetam automaticamente). |
 | `SEFIN_TIMEOUT_MS` | — | Tempo máximo de espera pela resposta do SEFIN (default `25000`). Em hospedagem com teto curto (Netlify ~10s), baixe para ~`9000` para falhar com erro claro antes do teto da plataforma. |
 
