@@ -85,6 +85,7 @@ export function buildDpsXml(p: EmitParams): string {
             ...(p.optanteSimplesNacional ? { regApTribSN: "1" } : {}),
             regEspTrib: p.regimeEspecial || "0",
           },
+        },
         ...(p.tomador ? {
           toma: {
             ...(p.tomador.cpfCnpj.length === 14 ? { CNPJ: p.tomador.cpfCnpj } : { CPF: p.tomador.cpfCnpj }),
