@@ -80,11 +80,11 @@ export function buildDpsXml(p: EmitParams): string {
         prest: {
           CNPJ: p.cnpjPrestador,
           ...(p.inscricaoMunicipal ? { IM: p.inscricaoMunicipal } : {}),
-          regTrib: {
+        regTrib: {
             opSimpNac: p.optanteSimplesNacional ? "3" : "1",
+            ...(p.optanteSimplesNacional ? { regApTribSN: "1" } : {}),
             regEspTrib: p.regimeEspecial || "0",
           },
-        },
         ...(p.tomador ? {
           toma: {
             ...(p.tomador.cpfCnpj.length === 14 ? { CNPJ: p.tomador.cpfCnpj } : { CPF: p.tomador.cpfCnpj }),
