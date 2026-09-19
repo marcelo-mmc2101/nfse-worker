@@ -112,7 +112,7 @@ export function buildDpsXml(p: EmitParams): string {
             // exclusiva: optante do Simples usa indTotTrib; NÃO optante não pode usar
             // indTotTrib (rejeição E0713) e informa os valores via vTotTrib.
             totTrib: p.optanteSimplesNacional
-              ? { indTotTrib: "0" }
+              ? { pTotTribSN: "0.00" }
               : { vTotTrib: { vTotTribFed: "0.00", vTotTribEst: "0.00", vTotTribMun: "0.00" } },
             // RTC/IBS-CBS: só entra quando explicitamente habilitado (ver EmitParams.rtc).
             ...(p.rtc ? {
