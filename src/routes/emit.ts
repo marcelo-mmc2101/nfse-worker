@@ -19,6 +19,7 @@ export async function handleEmit(req: Request, res: Response) {
       valores,
       observacoes,
       optanteSimplesNacional,
+      aliquotaSimplesNacional,
       ambiente,
     } = req.body;
 
@@ -66,6 +67,7 @@ export async function handleEmit(req: Request, res: Response) {
       valores: { valorServicos: valores.valorServicos },
       observacoes,
       optanteSimplesNacional,
+      aliquotaSimplesNacional: aliquotaSimplesNacional != null ? Number(aliquotaSimplesNacional) : null,
       ambiente: ambiente || "producao",
     };
 
