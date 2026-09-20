@@ -32,6 +32,8 @@ export interface EmitParams {
   regimeEspecial?: string;
   naturezaTributacao?: string;
   ambiente?: "producao" | "homologacao";
+  /** Alíquota efetiva do Simples Nacional (%) para o valor aproximado dos tributos. */
+  aliquotaSimplesNacional?: number | null;
   // RTC (Reforma Tributária — IBS/CBS). OPT-IN e desligado por padrão: o leiaute do
   // grupo no DPS ainda é transitório e o Ambiente Nacional pode rejeitá-lo em
   // homologação. Só é injetado no XML quando `rtc` vem preenchido — assim a emissão
@@ -112,7 +114,7 @@ export function buildDpsXml(p: EmitParams): string {
             // exclusiva: optante do Simples usa indTotTrib; NÃO optante não pode usar
             // indTotTrib (rejeição E0713) e informa os valores via vTotTrib.
             totTrib: p.optanteSimplesNacional
-              ? { pTotTribSN: "0.00" }
+              ? { pTotTribSN: fmt(p.aliquotaSimplesNacional ?? 0) }
               : { vTotTrib: { vTotTribFed: "0.00", vTotTribEst: "0.00", vTotTribMun: "0.00" } },
             // RTC/IBS-CBS: só entra quando explicitamente habilitado (ver EmitParams.rtc).
             ...(p.rtc ? {
